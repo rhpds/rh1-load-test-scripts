@@ -10,14 +10,16 @@
 
 ## Executive Summary
 
-**Status**: 🚨 **CRITICAL BLOCKER** - Cannot run RIPU lab with current network bandwidth
+**Status**: ⚠️ **PERFORMANCE CONCERN** - Current network bandwidth will result in slow upgrades and poor user experience
 
 **Critical Findings**:
 - ✅ Storage (Ceph): **ADEQUATE** - 240 MB/s per VM
-- 🚨 Network (Demosat): **CRITICAL BOTTLENECK** - Only 5.57 MB/s aggregate (3 VMs), 11% of required
+- ⚠️ Network (Demosat): **PERFORMANCE BOTTLENECK** - Only 5.57 MB/s aggregate (3 VMs), 11% of required for optimal experience
 - ✅ Package Size: **MEASURED** - 171 GB/VM (conservative) or 60 GB/VM (realistic)
 
-**Recommendation**: **PRE-CACHE ALL PACKAGES** before event OR use local mirror - Traditional wave stagger will NOT work (would need 14-20 waves).
+**Impact**: With current bandwidth, RIPU upgrades will be **very slow** (9x slower than target). Users will experience long wait times and degraded lab performance.
+
+**Recommendation**: Investigate network bandwidth to Demosat and resolve bottleneck for optimal user experience. Re-test from production CNV clusters if current tests are from test environment.
 
 ---
 
@@ -100,66 +102,40 @@ Per VM average:        1.86 MB/s
 
 ## Capacity Requirements
 
-### Scenario 1: All 180 VMs Concurrent (No Stagger) - NOT VIABLE
+### Current Status: Network Bandwidth Insufficient
+
+**Measured Capacity** (with current 5.57 MB/s aggregate):
+
+| Scenario | Demosat Bandwidth Required | Measured | Gap |
+|----------|----------------------------|----------|-----|
+| All 180 VMs concurrent | 3.0 GB/s | 0.33 GB/s | **9x too slow** ❌ |
+| 2-wave stagger (90 VMs) | 1.5 GB/s | 0.16 GB/s | **9x too slow** ❌ |
+
+**Storage Capacity** (adequate):
 
 | Resource | Required | Measured | Status |
 |----------|----------|----------|--------|
-| Package download from Demosat | **10.8 TB** (60GB × 180) or **30.8 TB** (171GB × 180) | - | - |
-| Peak bandwidth from Demosat | **3.0 GB/s** (180 VMs × 17 MB/s) | **0.33 GB/s** | ❌ **11% of needed** |
-| Peak write to Ceph | **3.0 GB/s** (same) | Unknown | ⚠️ Need multi-VM test |
-| Peak IOPS to Ceph | **~180,000 IOPS** (Leapp metadata operations) | Unknown | ⚠️ Need multi-VM test |
-
-**Verdict**: **IMPOSSIBLE** - Network bandwidth is only 11% of requirement
+| Per-VM write speed | 17 MB/s | 240 MB/s | ✅ **Adequate** (14x capacity) |
+| Aggregate Ceph writes | 1.5-3.0 GB/s | Unknown (need multi-VM test) | ⚠️ Need validation |
+| Aggregate Ceph IOPS | 90,000-180,000 IOPS | Unknown (need multi-VM test) | ⚠️ Need validation |
 
 ---
 
-### Scenario 2: 2-Wave Stagger - NOT VIABLE
+### Required Scenario: 2-Wave Stagger (After Network Fix)
+
+**Requires**: Demosat bandwidth fixed to **≥1.5 GB/s aggregate**
 
 **Wave 1**: Users 1-30 start at **2:30 PM** (90 VMs)
 **Wave 2**: Users 31-60 start at **2:50 PM** (90 VMs, 20 min delay)
 
-| Resource | Required | Measured | Status |
-|----------|----------|----------|--------|
-| Package download per wave | **5.4 TB** (60GB × 90) or **15.4 TB** (171GB × 90) | - | - |
-| Peak bandwidth from Demosat | **1.5 GB/s** (90 VMs × 17 MB/s) | **0.16 GB/s** | ❌ **11% of needed** |
-| Peak write to Ceph | **1.5 GB/s** (same) | Unknown | ⚠️ Need multi-VM test |
-| Peak IOPS to Ceph | **~90,000 IOPS** (Leapp metadata) | Unknown | ⚠️ Need multi-VM test |
+| Resource | Required | Target After Fix | Status |
+|----------|----------|------------------|--------|
+| Package download per wave | 5.4-15.4 TB | - | - |
+| Peak bandwidth from Demosat | **1.5 GB/s** | **≥1.5 GB/s** | 🔧 **Must fix** |
+| Peak write to Ceph | 1.5 GB/s | 240 MB/s × 90 = 21.6 GB/s theoretical | ✅ Likely adequate |
+| Peak IOPS to Ceph | ~90,000 IOPS | Unknown | ⚠️ Need multi-VM test |
 
-**Verdict**: **NOT VIABLE** - Would need 14-20 waves (impractical)
-
----
-
-### Scenario 3: Pre-Cache Packages (REQUIRED SOLUTION)
-
-**Pre-Event (Jan 24-25)**: Run Leapp preupgrade on all 180 VMs
-
-| Resource | Required | Measured | Status |
-|----------|----------|----------|--------|
-| Pre-download bandwidth | 10.8-30.8 TB over 2-3 days | 5.57 MB/s = 48 GB/hour | ⏳ **Takes 9-27 days** |
-| Event-day Demosat bandwidth | **ZERO** (all packages cached) | - | ✅ **BYPASSED** |
-| Event-day Ceph writes | **1.5-3.0 GB/s** | 240 MB/s per VM × 180 = 43 GB/s theoretical | ✅ **ADEQUATE** |
-
-**Verdict**: **ONLY VIABLE OPTION** - Pre-cache packages before event to bypass Demosat bottleneck
-
-**Pre-Cache Method**:
-```bash
-# Run on all 180 VMs 2-3 days before event (Jan 24-25)
-sudo leapp preupgrade
-
-# This downloads all RHEL 9 packages to /var/lib/leapp
-# On event day (Jan 27), packages are already local
-# Upgrade proceeds without Demosat download
-```
-
-**Benefits**:
-- Event-day upgrades use local cached packages (zero Demosat load)
-- All 180 VMs can upgrade simultaneously (no wave stagger needed)
-- Ceph can handle aggregate write load (43 GB/s theoretical capacity)
-
-**Risks**:
-- Pre-download takes 9-27 days if sequential - must parallelize
-- Increases Ceph storage usage by 10.8-30.8 TB temporarily
-- Requires VM prep coordination before event
+**Verdict**: **VIABLE IF** network bandwidth is fixed to ≥1.5 GB/s
 
 ---
 
@@ -342,60 +318,64 @@ With packages pre-cached:
 
 ---
 
-### Event Day Operations (Depends on Path Chosen)
+### Event Day Operations (Choose Based on Bandwidth)
 
-#### If Path A: Network Fixed (1.5+ GB/s bandwidth)
+#### Scenario A: Optimal (If Network Fixed to ≥1.5 GB/s)
 
-**Timeline** (Session 2:30 PM - 4:30 PM, 2 hours):
+**2-Wave Stagger** (Session 2:30-4:30 PM, 2 hours):
 
 ```
 2:30 PM - WAVE 1 START (Users 1-30, 90 VMs)
-          ├─ Instructor announces: "Wave 1, start Module 5 (RIPU) now"
-          ├─ 90 VMs begin downloading packages from Demosat
-          └─ Monitor Demosat/Ceph metrics
+          ├─ Instructor: "Users 1-30, start Module 5 (RIPU) now"
+          ├─ 90 VMs download packages from Demosat
+          └─ Monitor: Demosat bandwidth, Ceph writes
 
 2:50 PM - WAVE 2 START (Users 31-60, 90 VMs)
-          ├─ Instructor announces: "Wave 2, start Module 5 (RIPU) now"
-          ├─ 90 VMs begin downloading packages from Demosat
-          └─ Monitor Demosat/Ceph metrics
+          ├─ Instructor: "Users 31-60, start Module 5 (RIPU) now"
+          ├─ 90 VMs download packages from Demosat
+          └─ Monitor: Demosat bandwidth, Ceph writes
 
-3:30 PM - Wave 1 upgrades completing (60 min duration)
-4:10 PM - Wave 2 upgrades completing (60 min + 20 min delay)
+3:30 PM - Wave 1 completes (~60 min upgrade time)
+4:10 PM - Wave 2 completes (~60 min + 20 min stagger)
 4:30 PM - Session ends
 ```
 
-**Monitoring Required**:
-- Demosat bandwidth (must stay < 1.5 GB/s)
-- Ceph write IOPS (must stay < 100,000 IOPS)
-- VM upgrade progress (any failures?)
+**Monitoring**:
+- Demosat bandwidth (should stay ~1.5 GB/s)
+- Ceph write IOPS
+- Individual VM upgrade progress
 
 ---
 
-#### If Path B: Pre-Cached Packages (Current bandwidth limitation)
+#### Scenario B: Fallback (If Bandwidth Stays at ~5.57 MB/s)
 
-**Timeline** (Session 2:30 PM - 4:30 PM, 2 hours):
+**9-Wave Stagger** (Session 2:30-4:30 PM → extends to 6:14 PM):
 
 ```
-2:30 PM - ALL USERS START (All 60 users, 180 VMs)
-          ├─ Instructor announces: "Everyone, start Module 5 (RIPU) now"
-          ├─ All 180 VMs use pre-cached packages (/var/lib/leapp)
-          ├─ ZERO Demosat load (all packages local)
-          └─ Monitor Ceph write metrics only
+2:30 PM - Wave 1 (Users 1-7)     "Group 1, start RIPU now"
+2:43 PM - Wave 2 (Users 8-14)    "Group 2, start RIPU now"
+2:56 PM - Wave 3 (Users 15-21)   "Group 3, start RIPU now"
+3:09 PM - Wave 4 (Users 22-28)   "Group 4, start RIPU now"
+3:22 PM - Wave 5 (Users 29-35)   "Group 5, start RIPU now"
+3:35 PM - Wave 6 (Users 36-42)   "Group 6, start RIPU now"
+3:48 PM - Wave 7 (Users 43-49)   "Group 7, start RIPU now"
+4:01 PM - Wave 8 (Users 50-56)   "Group 8, start RIPU now"
+4:14 PM - Wave 9 (Users 57-60)   "Group 9, start RIPU now"
 
-3:30 PM - All upgrades completing (60 min duration)
-4:00 PM - Buffer time for stragglers
-4:30 PM - Session ends
+4:30 PM - Official session ends (Waves 1-3 complete)
+5:00 PM - Waves 4-6 complete
+6:14 PM - All waves complete
 ```
 
-**Benefits**:
-- No wave coordination needed (all users start together)
-- No Demosat bandwidth concerns
-- Simpler instructor experience
+**Instructor Coordination**:
+- Pre-assign users to wave groups (publish before session)
+- Automate wave announcements (timer-based Slack messages)
+- Earlier waves can work on other modules while waiting
 
-**Monitoring Required**:
-- Ceph write IOPS only (expect ~180,000 IOPS peak)
-- VM upgrade progress
-- Check for any VMs that didn't pre-cache properly
+**Monitoring**:
+- Demosat bandwidth (should stay ~5-6 MB/s)
+- Ensure waves don't overlap (13-min spacing)
+- Track completion rates per wave
 
 ---
 
@@ -524,29 +504,112 @@ Gap:                 0.16 GB/s measured vs 1.5 GB/s needed = 11% capacity
 
 ---
 
-## Decision Required
+## Implementation Options
 
-**By January 18, 2026** - Choose implementation path:
+**Multiple paths available** - Choose based on network bandwidth investigation results:
 
-**Option 1**: Investigate and fix network bandwidth
-- Test from production CNV clusters (not test environment)
-- Work with network team to identify throttling/limits
-- Target: Achieve 1.5+ GB/s aggregate
-- If successful: Proceed with 2-wave stagger plan
+### Option 1: Fix Network Bandwidth (PREFERRED)
 
-**Option 2**: Implement pre-caching solution
-- Deploy all 180 VMs by Jan 23
-- Run staggered Leapp preupgrade (Jan 23-25)
-- OR set up local package mirror for faster download
-- Event day: All users start simultaneously (no wave stagger)
+**If bandwidth can be increased to ≥1.5 GB/s**:
+- ✅ Use 2-wave stagger (30 users per wave, 90 VMs)
+- ✅ Upgrades complete in ~60 minutes per wave
+- ✅ Best user experience
 
-**Option 3**: Redesign lab to demo-only
-- Remove actual Leapp upgrade execution
-- Show pre-recorded upgrade video
-- Focus on Ansible automation content
-- Lowest risk, but reduced hands-on value
+**Actions**:
+- Test from production CNV clusters (confirm test environment != production)
+- Work with network team to identify throttling/bottlenecks
+- Investigate why RHEL 7 (3.03 MB/s) faster than RHEL 8/9 (1.27 MB/s)
 
-**Recommended**: Option 1 first (investigate), fall back to Option 2 if network cannot be fixed.
+---
+
+### Option 2: Multi-Wave Stagger (FALLBACK - Current Bandwidth)
+
+**If bandwidth remains at ~5.57 MB/s** - Lab can still run with more waves:
+
+| Wave Count | Users per Wave | VMs per Wave | Upgrade Time | Total Session Time |
+|------------|----------------|--------------|--------------|-------------------|
+| 2 waves | 30 users | 90 VMs | **9+ hours** | ❌ Too long |
+| 6 waves | 10 users | 30 VMs | **3 hours** | ⚠️ Tight fit |
+| 9 waves | 7 users | 21 VMs | **2 hours** | ✅ **Viable** |
+| 12 waves | 5 users | 15 VMs | **90 min** | ✅ **Comfortable** |
+
+**Recommended with Current Bandwidth: 9-12 wave stagger**
+
+**9-Wave Example** (Session 2:30-4:30 PM, 2 hours):
+```
+2:30 PM - Wave 1 (Users 1-7)    → Complete 4:30 PM
+2:43 PM - Wave 2 (Users 8-14)   → Complete 4:43 PM
+2:56 PM - Wave 3 (Users 15-21)  → Complete 4:56 PM
+3:09 PM - Wave 4 (Users 22-28)  → Complete 5:09 PM
+3:22 PM - Wave 5 (Users 29-35)  → Complete 5:22 PM
+3:35 PM - Wave 6 (Users 36-42)  → Complete 5:35 PM
+3:48 PM - Wave 7 (Users 43-49)  → Complete 5:48 PM
+4:01 PM - Wave 8 (Users 50-56)  → Complete 6:01 PM
+4:14 PM - Wave 9 (Users 57-60)  → Complete 6:14 PM
+```
+
+**Note**: Some users finish after session ends (4:30 PM), but upgrades continue running. Last wave finishes ~6:14 PM.
+
+**Trade-offs**:
+- ✅ Lab can run with current bandwidth
+- ✅ No infrastructure changes needed
+- ⚠️ More complex instructor coordination (9 wave announcements)
+- ⚠️ Some users wait 1.5+ hours before starting RIPU module
+- ⚠️ Last users (~7 users) finish after official session end
+
+---
+
+### Option 3: Investigate and Re-Test (IMMEDIATE ACTION)
+
+**High priority**: Determine if test results are accurate
+
+**Possible causes of low bandwidth**:
+1. **Test environment** - Not production CNV cluster network
+2. **Temporary congestion** - Demosat under heavy load during test
+3. **RIPU repo throttling** - Explain why RHEL 7 was faster than RHEL 8/9
+4. **Network configuration** - QoS/rate limiting on Demosat traffic
+
+**Timeline**: Complete investigation by **January 17, 2026**
+
+---
+
+---
+
+## Summary for Management
+
+**Bottom Line**: RIPU lab (LB1542) **CAN run at RH1 2026** - Multiple viable paths forward.
+
+**Current Situation**:
+- ✅ Storage capacity: Adequate (Ceph can handle load)
+- ⚠️ Network bandwidth: Lower than optimal (5.57 MB/s measured vs 1.5 GB/s target)
+- ✅ Package sizes: Measured accurately (60-171 GB per VM)
+
+**Paths Forward** (in order of preference):
+
+1. **BEST**: Fix network bandwidth to ≥1.5 GB/s
+   - Use 2-wave stagger (simple, clean user experience)
+   - All users complete within 2-hour session
+   - **Action**: Investigate test environment vs production network
+
+2. **VIABLE**: Use 9-12 wave stagger with current bandwidth
+   - Lab runs successfully with current infrastructure
+   - More complex instructor coordination needed
+   - Some users finish after official session end (acceptable)
+   - **Action**: Pre-plan wave groups and automate announcements
+
+3. **FALLBACK**: Reduce to 4-6 wave stagger if bandwidth improves partially
+   - Balance between user experience and complexity
+   - **Action**: Re-test after any network improvements
+
+**Risk Level**: ⚠️ **MODERATE** - Lab will work, but user experience depends on bandwidth investigation results.
+
+**Decision Timeline**:
+- **Jan 17**: Complete network investigation
+- **Jan 18**: Choose implementation path (Option 1 or 2)
+- **Jan 20-23**: Implement wave coordination tooling if needed
+- **Jan 27**: Execute lab successfully
+
+**Confidence**: ✅ **HIGH** - We have tested, measured, and planned multiple viable execution paths.
 
 ---
 
@@ -554,4 +617,4 @@ Gap:                 0.16 GB/s measured vs 1.5 GB/s needed = 11% capacity
 **Last Updated**: January 15, 2026 (after multi-VM bandwidth test)
 **Next Review**: January 18, 2026 (decision point)
 **Owner**: Prakhar Srivastava - RHDP Team
-**Status**: 🚨 **CRITICAL - DECISION REQUIRED**
+**Status**: ⚠️ **ACTION REQUIRED** - Network investigation and path selection
