@@ -618,36 +618,36 @@ If aggregate < 1.5 GB/s → Need multi-wave stagger (more complex)
 
 | Script | Purpose | Runtime | Where to Run |
 |--------|---------|---------|--------------|
-| **`test-vma-migration-simple.sh`** | **🎯 Fully automated migration test** | **15-30 min** | **Bastion** |
-| `test-vm-migration-sizes.sh` | Query VM disk sizes from vCenter/OpenShift | ~2 min | Bastion |
-| `test-migration-bandwidth.sh` | Monitor migration performance | Varies | Bastion (during migration) |
+| **`test-vma-migration-direct.sh`** | **🎯 Fully automated - creates & monitors migration** | **15-30 min** | **Bastion** |
 | `test-storage-speed.sh` | Test Ceph write performance | ~5 min | Bastion or any VM |
 | `test-storage-speed-parallel.sh` | Test Ceph aggregate throughput | ~2 min | Bastion or any VM |
 
-**⭐ Recommended**: Use `test-vma-migration-simple.sh` - it auto-detects everything and provides complete capacity analysis.
+**⭐ Recommended**: Just run `test-vma-migration-direct.sh` - it does everything using oc commands (no web UI needed).
 
 ---
 
 ## 🚀 Quick Start (One Command)
 
-**For L1/L2 Teams - Simplest Method**:
+**For L1/L2 Teams - Fully Automated**:
 
 ```bash
 # SSH to bastion and run:
 cd ~/
 git clone https://github.com/rhpds/rh1-load-test-scripts.git
 cd rh1-load-test-scripts
-./test-vma-migration-simple.sh
+./test-vma-migration-direct.sh
 ```
 
-**That's it!** The script will:
-- ✅ Auto-detect AAP namespace, credentials, and URL
-- ✅ Auto-find and launch migration job template
-- ✅ Monitor migration progress automatically
-- ✅ Calculate bandwidth and capacity for 60 users
-- ✅ Provide execution recommendation (all concurrent vs wave stagger)
+**The script will**:
+- ✅ Auto-detect student ID
+- ✅ Create migration plan using oc commands
+- ✅ Start migration automatically
+- ✅ Monitor until complete
+- ✅ Calculate migration speed
+- ✅ Show bandwidth needed for 60 users
+- ✅ Recommend execution strategy
 
-**Expected runtime**: 15-30 minutes
+**Expected runtime**: 15-30 minutes (no web UI needed!)
 
 ---
 

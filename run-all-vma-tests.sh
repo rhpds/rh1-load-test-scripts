@@ -107,44 +107,13 @@ echo "TEST 5: ACTUAL MIGRATION TEST (CRITICAL)" | tee -a "$RESULTS_DIR/SUMMARY.t
 echo "========================================" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-echo "⚠️  MANUAL DECISION REQUIRED" | tee -a "$RESULTS_DIR/SUMMARY.txt"
+echo "To run migration capacity test:" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "Choose migration test method:" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "Option 1: Fully Automated (Recommended)" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "  Run: ./test-vma-migration-simple.sh" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "  - Auto-detects AAP and launches migration" | tee -a "$RESULTS_DIR/SUMMARY.txt"
+echo "Run: ./test-vma-migration-direct.sh" | tee -a "$RESULTS_DIR/SUMMARY.txt"
+echo "  - Creates migration using oc commands (no web UI needed)" | tee -a "$RESULTS_DIR/SUMMARY.txt"
+echo "  - Monitors and calculates bandwidth" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "  - Takes 15-30 minutes" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "Option 2: Manual via AAP Web UI" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "  1. Open AAP Controller web UI" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "  2. Find migration job template" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "  3. Launch migration job" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "  4. Run: ./test-migration-bandwidth.sh (monitors migration)" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-
-read -p "Run automated migration test now? (y/n): " RUN_MIGRATION
-
-if [ "$RUN_MIGRATION" = "y" ] || [ "$RUN_MIGRATION" = "Y" ]; then
-    if [ -f "./test-vma-migration-simple.sh" ]; then
-        echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-        echo "🚀 Starting automated migration test..." | tee -a "$RESULTS_DIR/SUMMARY.txt"
-        echo "This will take 15-30 minutes" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-        echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-
-        ./test-vma-migration-simple.sh 2>&1 | tee "$RESULTS_DIR/test5-migration-automated.log"
-
-        # Extract key findings
-        echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-        echo "Migration Test Results:" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-        grep -E "Duration:|Migration speed:|Total VMs:|Total data:|Bandwidth Requirements:|EXCELLENT|GOOD|MODERATE" "$RESULTS_DIR/test5-migration-automated.log" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-    else
-        echo "❌ test-vma-migration-simple.sh not found" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-    fi
-else
-    echo "⏭️  Skipping migration test (run manually later)" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-    echo "   To run later: ./test-vma-migration-simple.sh" | tee -a "$RESULTS_DIR/SUMMARY.txt"
-fi
 
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
