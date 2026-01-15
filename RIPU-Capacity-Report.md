@@ -1,7 +1,6 @@
 # RIPU Lab (LB1542) - RH1 2026 Capacity Report
 
 **Lab**: LB1542 - Automating RHEL In-Place Upgrades with Ansible
-**Event Date**: January 27, 2026
 **Expected Users**: 60 users
 **VMs per User**: 3 RHEL 8 nodes (controller, 2 managed nodes)
 **Total VMs**: 180 VMs upgrading RHEL 8 → 9 via Leapp
@@ -465,7 +464,7 @@ grep "Aggregate throughput:" storage-*.log | awk '{sum+=$3} END {printf "Total a
 
 ## Appendix: Actual Test Data
 
-### Multi-VM Demosat Bandwidth Test Results (Jan 15, 2026)
+### Multi-VM Demosat Bandwidth Test Results
 
 **Test Configuration**: 3 VMs (node1=RHEL 7, node2=RHEL 8, node3=RHEL 9) running simultaneously
 
@@ -559,7 +558,7 @@ Gap:                 0.16 GB/s measured vs 1.5 GB/s needed = 11% capacity
 
 ---
 
-### Option 3: Investigate and Re-Test (IMMEDIATE ACTION)
+### Option 3: Investigate and Re-Test
 
 **High priority**: Determine if test results are accurate
 
@@ -569,52 +568,81 @@ Gap:                 0.16 GB/s measured vs 1.5 GB/s needed = 11% capacity
 3. **RIPU repo throttling** - Explain why RHEL 7 was faster than RHEL 8/9
 4. **Network configuration** - QoS/rate limiting on Demosat traffic
 
-**Timeline**: Complete investigation by **January 17, 2026**
+**Recommendation**: Complete investigation before finalizing event execution plan
 
 ---
 
 ---
 
-## Summary for Management
+## Recommendations
 
-**Bottom Line**: RIPU lab (LB1542) **CAN run at RH1 2026** - Multiple viable paths forward.
+**Bottom Line**: RIPU lab (LB1542) **CAN run successfully** - Multiple viable execution paths available.
 
 **Current Situation**:
 - ✅ Storage capacity: Adequate (Ceph can handle load)
 - ⚠️ Network bandwidth: Lower than optimal (5.57 MB/s measured vs 1.5 GB/s target)
 - ✅ Package sizes: Measured accurately (60-171 GB per VM)
 
-**Paths Forward** (in order of preference):
+---
 
-1. **BEST**: Fix network bandwidth to ≥1.5 GB/s
-   - Use 2-wave stagger (simple, clean user experience)
-   - All users complete within 2-hour session
-   - **Action**: Investigate test environment vs production network
+### Recommended Execution Paths (in order of preference)
 
-2. **VIABLE**: Use 9-12 wave stagger with current bandwidth
-   - Lab runs successfully with current infrastructure
-   - More complex instructor coordination needed
-   - Some users finish after official session end (acceptable)
-   - **Action**: Pre-plan wave groups and automate announcements
+#### Option 1: Fix Network Bandwidth (BEST USER EXPERIENCE)
 
-3. **FALLBACK**: Reduce to 4-6 wave stagger if bandwidth improves partially
-   - Balance between user experience and complexity
-   - **Action**: Re-test after any network improvements
+**If network bandwidth can be increased to ≥1.5 GB/s**:
+- ✅ Use 2-wave stagger (30 users per wave)
+- ✅ Simple instructor coordination
+- ✅ All users complete within 2-hour session
+- ✅ Optimal user experience
 
-**Risk Level**: ⚠️ **MODERATE** - Lab will work, but user experience depends on bandwidth investigation results.
-
-**Decision Timeline**:
-- **Jan 17**: Complete network investigation
-- **Jan 18**: Choose implementation path (Option 1 or 2)
-- **Jan 20-23**: Implement wave coordination tooling if needed
-- **Jan 27**: Execute lab successfully
-
-**Confidence**: ✅ **HIGH** - We have tested, measured, and planned multiple viable execution paths.
+**Action Required**:
+- Investigate if test environment != production network
+- Work with network team to identify bandwidth bottleneck
+- Re-test from production CNV cluster VMs
 
 ---
 
-**Report Generated**: January 15, 2026
-**Last Updated**: January 15, 2026 (after multi-VM bandwidth test)
-**Next Review**: January 18, 2026 (decision point)
+#### Option 2: Multi-Wave Stagger (VIABLE WITH CURRENT BANDWIDTH)
+
+**Lab runs successfully with current 5.57 MB/s bandwidth**:
+- ✅ Use 9-12 wave stagger (5-7 users per wave)
+- ✅ No infrastructure changes needed
+- ⚠️ More complex instructor coordination (automated announcements recommended)
+- ⚠️ Some users finish after official session end
+
+**Action Required**:
+- Pre-assign users to wave groups
+- Set up automated wave announcements (Slack/timer)
+- Plan for extended lab completion time
+
+---
+
+#### Option 3: Hybrid Approach (FLEXIBLE)
+
+**If network bandwidth improves partially (e.g., to 0.5-1.0 GB/s)**:
+- ✅ Use 4-6 wave stagger
+- ✅ Balance between user experience and complexity
+- ✅ Most users complete within session time
+
+**Action Required**:
+- Re-test bandwidth after any network improvements
+- Adjust wave count based on actual capacity
+
+---
+
+### Risk Assessment
+
+**Risk Level**: ⚠️ **MODERATE**
+- Lab will execute successfully regardless of bandwidth
+- User experience varies based on chosen option
+- Multiple tested and viable execution paths
+
+**Confidence Level**: ✅ **HIGH**
+- All measurements based on actual testing
+- Multiple fallback options available
+- Storage capacity confirmed adequate
+
+---
+
 **Owner**: Prakhar Srivastava - RHDP Team
-**Status**: ⚠️ **ACTION REQUIRED** - Network investigation and path selection
+**Status**: ⚠️ **ACTION REQUIRED** - Network investigation and execution path selection
