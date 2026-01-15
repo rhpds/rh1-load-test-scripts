@@ -33,6 +33,82 @@ echo "" | tee -a "$LOG_FILE"
 # MTV namespace (default)
 MTV_NS="openshift-mtv"
 
+# Check if VMware provider exists
+PROVIDER_NAME="vmware-etx"
+PROVIDER_EXISTS=$(oc get provider -n $MTV_NS $PROVIDER_NAME 2>/dev/null)
+
+if [ -z "$PROVIDER_EXISTS" ]; then
+    echo "⚠️  VMware provider '$PROVIDER_NAME' not found" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+    echo "Creating VMware provider..." | tee -a "$LOG_FILE"
+
+    # Prompt for vCenter details
+    read -p "Enter vCenter URL (e.g., vcsnsx-vc.infra.demo.redhat.com): " VCENTER_HOST
+    read -p "Enter vCenter username (e.g., sandbox-rh2c6-1@infra): " VCENTER_USER
+    read -sp "Enter vCenter password: " VCENTER_PASSWORD
+    echo
+
+    # Create secret
+    echo "Creating vCenter credentials secret..." | tee -a "$LOG_FILE"
+    oc create secret generic ${PROVIDER_NAME}-credentials \
+      -n $MTV_NS \
+      --from-literal=user="$VCENTER_USER" \
+      --from-literal=password="$VCENTER_PASSWORD" 2>&1 | tee -a "$LOG_FILE"
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to create secret" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+
+    # Create provider
+    echo "Creating VMware provider..." | tee -a "$LOG_FILE"
+    cat <<EOF | oc apply -f - 2>&1 | tee -a "$LOG_FILE"
+apiVersion: forklift.konveyor.io/v1beta1
+kind: Provider
+metadata:
+  name: $PROVIDER_NAME
+  namespace: $MTV_NS
+spec:
+  type: vsphere
+  url: https://$VCENTER_HOST/sdk
+  settings:
+    vddkInitImage: quay.io/kubev2v/vddk:v8
+  secret:
+    name: ${PROVIDER_NAME}-credentials
+    namespace: $MTV_NS
+EOF
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to create provider" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+
+    # Wait for provider to be ready
+    echo "Waiting for provider to connect to vCenter..." | tee -a "$LOG_FILE"
+    TIMEOUT=120
+    ELAPSED=0
+    while [ $ELAPSED -lt $TIMEOUT ]; do
+        PROVIDER_READY=$(oc get provider -n $MTV_NS $PROVIDER_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+        if [ "$PROVIDER_READY" = "True" ]; then
+            echo "✅ Provider ready" | tee -a "$LOG_FILE"
+            break
+        fi
+        sleep 5
+        ELAPSED=$((ELAPSED + 5))
+        echo "   Waiting... (${ELAPSED}s)" | tee -a "$LOG_FILE"
+    done
+
+    if [ "$PROVIDER_READY" != "True" ]; then
+        echo "❌ Provider failed to become ready after ${TIMEOUT}s" | tee -a "$LOG_FILE"
+        echo "   Check: oc get provider -n $MTV_NS $PROVIDER_NAME -o yaml" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+    echo "" | tee -a "$LOG_FILE"
+else
+    echo "✅ VMware provider '$PROVIDER_NAME' exists" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+fi
+
 # Check if migration already running
 MIGRATION=$(oc get migrations -A -o json 2>/dev/null | \
     jq -r '.items[] | select(.status.phase == "Running") | {name: .metadata.name, namespace: .metadata.namespace, started: .status.started}' 2>/dev/null | head -1)
