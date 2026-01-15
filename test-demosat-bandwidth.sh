@@ -1,6 +1,7 @@
 #!/bin/bash
 # Test Network Bandwidth to Demosat - Download speed test
 # Measures how fast packages can be downloaded from Demosat Satellite
+# Works on RHEL 7, 8, and 9
 
 LOG_FILE="demosat-bandwidth-test-$(date +%Y%m%d-%H%M%S).log"
 
@@ -8,6 +9,10 @@ echo "Demosat Network Bandwidth Test" | tee -a "$LOG_FILE"
 echo "Started: $(date)" | tee -a "$LOG_FILE"
 echo "Hostname: $(hostname)" | tee -a "$LOG_FILE"
 echo "================================" | tee -a "$LOG_FILE"
+
+# Detect RHEL version
+RHEL_VERSION=$(grep -oP 'release \K[0-9]+' /etc/redhat-release 2>/dev/null || echo "unknown")
+echo "RHEL Version: $RHEL_VERSION" | tee -a "$LOG_FILE"
 
 # Install bc if needed
 if ! command -v bc &> /dev/null; then
@@ -28,18 +33,35 @@ fi
 
 echo "   Demosat server: $DEMOSAT_HOST" | tee -a "$LOG_FILE"
 
-# Check RIPU repos
+# Check RIPU repos (RHEL 8 only)
 echo "" | tee -a "$LOG_FILE"
-echo "2. RIPU Repository URLs" | tee -a "$LOG_FILE"
-grep -A 2 "ripu-upgrade" /etc/yum.repos.d/*.repo 2>/dev/null | grep "baseurl" | tee -a "$LOG_FILE"
+echo "2. Available Repository URLs" | tee -a "$LOG_FILE"
+if [ "$RHEL_VERSION" = "8" ]; then
+    grep -A 2 "ripu-upgrade" /etc/yum.repos.d/*.repo 2>/dev/null | grep "baseurl" | tee -a "$LOG_FILE"
+else
+    grep -r "baseurl" /etc/yum.repos.d/*.repo 2>/dev/null | head -3 | tee -a "$LOG_FILE"
+fi
 
-# 3. Test 1: Download a small package
+# 3. Test 1: Download a single package
 echo "" | tee -a "$LOG_FILE"
-echo "3. Small Package Download Test (1 package)" | tee -a "$LOG_FILE"
+echo "3. Single Package Download Test" | tee -a "$LOG_FILE"
 echo "   Finding a test package..." | tee -a "$LOG_FILE"
 
-# Get a medium-sized package URL from RIPU repos
-TEST_PKG=$(sudo dnf repoquery --enablerepo=ripu-upgrade-rhel-9-baseos --location kernel 2>/dev/null | head -1)
+# Get a package URL based on RHEL version
+if [ "$RHEL_VERSION" = "8" ]; then
+    # RHEL 8: Try RIPU repos first
+    TEST_PKG=$(sudo dnf repoquery --enablerepo=ripu-upgrade-rhel-9-baseos --location kernel 2>/dev/null | head -1)
+fi
+
+if [ -z "$TEST_PKG" ]; then
+    # Fallback: Use any available repo
+    if command -v dnf &> /dev/null; then
+        TEST_PKG=$(sudo dnf repoquery --location kernel 2>/dev/null | head -1)
+    else
+        # RHEL 7: Use repoquery (from yum-utils)
+        TEST_PKG=$(sudo repoquery --location kernel 2>/dev/null | head -1)
+    fi
+fi
 
 if [ -n "$TEST_PKG" ]; then
     echo "   Test package: $TEST_PKG" | tee -a "$LOG_FILE"
@@ -69,8 +91,20 @@ echo "" | tee -a "$LOG_FILE"
 echo "4. Bulk Download Test (download multiple packages)" | tee -a "$LOG_FILE"
 echo "   Downloading 5 packages from Demosat..." | tee -a "$LOG_FILE"
 
-# Get list of 5 medium-sized packages
-TEST_PKGS=$(sudo dnf repoquery --enablerepo=ripu-upgrade-rhel-9-baseos --enablerepo=ripu-upgrade-rhel-9-appstream --location systemd glibc python3-libs NetworkManager kernel 2>/dev/null | head -5)
+# Get list of 5 medium-sized packages based on RHEL version
+if [ "$RHEL_VERSION" = "8" ]; then
+    TEST_PKGS=$(sudo dnf repoquery --enablerepo=ripu-upgrade-rhel-9-baseos --enablerepo=ripu-upgrade-rhel-9-appstream --location systemd glibc python3-libs NetworkManager kernel 2>/dev/null | head -5)
+fi
+
+if [ -z "$TEST_PKGS" ]; then
+    # Fallback: Use any available packages
+    if command -v dnf &> /dev/null; then
+        TEST_PKGS=$(sudo dnf repoquery --location systemd glibc NetworkManager kernel bash 2>/dev/null | head -5)
+    else
+        # RHEL 7: Use repoquery
+        TEST_PKGS=$(sudo repoquery --location systemd glibc NetworkManager kernel bash 2>/dev/null | head -5)
+    fi
+fi
 
 if [ -n "$TEST_PKGS" ]; then
     BULK_START=$(date +%s)
@@ -107,15 +141,31 @@ echo "" | tee -a "$LOG_FILE"
 echo "5. Sustained Download Test (30 seconds)" | tee -a "$LOG_FILE"
 echo "   Downloading packages continuously..." | tee -a "$LOG_FILE"
 
-# Use dnf to download packages (won't install, just download)
+# Use appropriate download command based on RHEL version
 DOWNLOAD_DIR=$(mktemp -d)
 SUSTAINED_START=$(date +%s)
 
-# Download a bunch of packages
-sudo dnf download --destdir="$DOWNLOAD_DIR" --enablerepo=ripu-upgrade-rhel-9-baseos --enablerepo=ripu-upgrade-rhel-9-appstream \
-    kernel systemd glibc NetworkManager python3-libs dnf rpm bash coreutils util-linux \
-    2>&1 | tee -a "$LOG_FILE" &
-DOWNLOAD_PID=$!
+# Download a bunch of packages based on RHEL version
+if [ "$RHEL_VERSION" = "8" ]; then
+    # RHEL 8: Try RIPU repos first
+    sudo dnf download --destdir="$DOWNLOAD_DIR" --enablerepo=ripu-upgrade-rhel-9-baseos --enablerepo=ripu-upgrade-rhel-9-appstream \
+        kernel systemd glibc NetworkManager python3-libs dnf rpm bash coreutils util-linux \
+        2>&1 | tee -a "$LOG_FILE" &
+    DOWNLOAD_PID=$!
+elif command -v dnf &> /dev/null; then
+    # RHEL 9: Use dnf download from standard repos
+    sudo dnf download --destdir="$DOWNLOAD_DIR" \
+        kernel systemd glibc NetworkManager python3-libs dnf rpm bash coreutils util-linux \
+        2>&1 | tee -a "$LOG_FILE" &
+    DOWNLOAD_PID=$!
+else
+    # RHEL 7: Use yumdownloader
+    cd "$DOWNLOAD_DIR"
+    sudo yumdownloader kernel systemd glibc NetworkManager python3-libs rpm bash coreutils util-linux \
+        2>&1 | tee -a "$LOG_FILE" &
+    DOWNLOAD_PID=$!
+    cd - > /dev/null
+fi
 
 # Let it run for 30 seconds
 sleep 30
