@@ -156,37 +156,129 @@ fi
 AAP_URL="https://$AAP_ROUTE"
 echo "✅ AAP Controller: $AAP_URL" | tee -a "$LOG_FILE"
 
-# Get AAP admin username - try to detect or use default
-AAP_USERNAME="${AAP_USERNAME:-admin}"
-
-# Try to find username in secret if available
-USERNAME_FROM_SECRET=$(oc get secret -n $AAP_NS -o json 2>/dev/null | \
-    jq -r '.items[] | select(.data.username != null) | .data.username' 2>/dev/null | \
-    base64 -d 2>/dev/null | head -1)
-
-if [ -n "$USERNAME_FROM_SECRET" ]; then
-    AAP_USERNAME="$USERNAME_FROM_SECRET"
-fi
-
+# Get AAP admin username - always use 'admin' (standard for AAP)
+AAP_USERNAME="admin"
 echo "✅ AAP username: $AAP_USERNAME" | tee -a "$LOG_FILE"
 
 echo "" | tee -a "$LOG_FILE"
-echo "STEP 2: Finding Migration Job Template" | tee -a "$LOG_FILE"
+echo "STEP 2: Preparing for Migration Test" | tee -a "$LOG_FILE"
 echo "================================" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
 
-# Authenticate to AAP and get job templates
+# Check for migration job template
 JOB_TEMPLATES=$(curl -k -s "$AAP_URL/api/v2/job_templates/" \
     -u "$AAP_USERNAME:$AAP_PASSWORD" 2>&1)
 
-# Find migration job (search for: migration, migrate, MTV, VMA, virt)
-MIGRATION_JT=$(echo "$JOB_TEMPLATES" | jq -r '.results[] | select(.name | test("igrat|MTV|VMA|virt"; "i")) | {id: .id, name: .name}' 2>/dev/null | head -1)
+# Search for migration job template
+MIGRATION_JT=$(echo "$JOB_TEMPLATES" | jq -r '.results[] | select(.name | contains("Migration") and contains("Migrate")) | {id: .id, name: .name}' 2>/dev/null | head -1)
 
-if [ -z "$MIGRATION_JT" ]; then
-    echo "⚠️  No migration job template found automatically" | tee -a "$LOG_FILE"
+if [ -n "$MIGRATION_JT" ]; then
+    MIGRATION_JT_ID=$(echo "$MIGRATION_JT" | jq -r '.id')
+    MIGRATION_JT_NAME=$(echo "$MIGRATION_JT" | jq -r '.name')
+    echo "✅ Found migration job template: $MIGRATION_JT_NAME" | tee -a "$LOG_FILE"
+    echo "   Job Template ID: $MIGRATION_JT_ID" | tee -a "$LOG_FILE"
+else
+    echo "⚠️  Migration job template not found automatically" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+    JOB_COUNT=$(echo "$JOB_TEMPLATES" | jq -r '.count' 2>/dev/null)
+    echo "   Total job templates in AAP: $JOB_COUNT" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
     echo "Available job templates:" | tee -a "$LOG_FILE"
-    echo "$JOB_TEMPLATES" | jq -r '.results[] | "  - \(.name) (ID: \(.id))"' 2>/dev/null | tee -a "$LOG_FILE"
+    echo "$JOB_TEMPLATES" | jq -r '.results[] | "  - \(.name) (ID: \(.id))"' 2>/dev/null | head -10 | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
+fi
+
+echo "" | tee -a "$LOG_FILE"
+echo "📋 MANUAL MIGRATION REQUIRED" | tee -a "$LOG_FILE"
+echo "================================" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "According to the VMA Factory lab, you need to:" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "1. Open AAP Controller web UI:" | tee -a "$LOG_FILE"
+echo "   $AAP_URL" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "2. Login with:" | tee -a "$LOG_FILE"
+echo "   Username: $AAP_USERNAME" | tee -a "$LOG_FILE"
+echo "   Password: [from secret]" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "3. Find job template: 'OpenShift Virtualization Migration - Migrate - etx.redhat.com'" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "4. For CAPACITY TESTING, migrate ONLY 1 VM (not 2):" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+cat >> "$LOG_FILE" << 'EOF'
+   Click the rocket icon and enter these variables:
+
+   mtv_migrate_migration_request:
+     mtv_namespace: vmexamples-automation
+     source: vmware-etx
+     source_namespace: openshift-mtv
+     destination_namespace: openshift-mtv
+     network_map: vmware-etx-host
+     network_map_namespace: vmexamples-automation
+     storage_map: vmware-etx-host
+     storage_map_namespace: vmexamples-automation
+     plan_name: capacity-test-migration
+     start_migration: true
+     vms:
+       - path: "/RS00/vm/ETX/student-01/win2019-1"
+
+   (Replace student-01 with your actual student ID)
+EOF
+
+cat >> "$LOG_FILE" << 'EOF'
+
+5. Click Next, then Finish to start the migration
+
+6. Come back to this terminal - the script will detect and monitor it!
+
+EOF
+
+echo "⏳ WAITING for you to start the migration in AAP..." | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+echo "Press ENTER once you've launched the migration job in AAP UI"
+read -p "" READY
+
+echo "" | tee -a "$LOG_FILE"
+echo "STEP 3: Monitoring Migration" | tee -a "$LOG_FILE"
+echo "================================" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+
+# Now find the running migration
+echo "Searching for active migration..." | tee -a "$LOG_FILE"
+
+START_TIME=$(date +%s)
+
+# Monitor for migrations via OpenShift
+if command -v oc &> /dev/null; then
+    echo "Monitoring via OpenShift MTV..." | tee -a "$LOG_FILE"
+
+    # Wait for migration to appear
+    MIGRATION_FOUND=false
+    for i in {1..30}; do
+        MIGRATION=$(oc get migrations -A -o json 2>/dev/null | \
+            jq -r '.items[] | select(.status.phase == "Running" or .status.phase == "Succeeded") | {name: .metadata.name, namespace: .metadata.namespace, phase: .status.phase, started: .status.started}' 2>/dev/null | head -1)
+
+        if [ -n "$MIGRATION" ]; then
+            MIGRATION_FOUND=true
+            MIGRATION_NAME=$(echo "$MIGRATION" | jq -r '.name')
+            MIGRATION_NS=$(echo "$MIGRATION" | jq -r '.namespace')
+            echo "✅ Found migration: $MIGRATION_NAME (namespace: $MIGRATION_NS)" | tee -a "$LOG_FILE"
+            break
+        fi
+
+        echo "   [$i/30] Waiting for migration to appear..." | tee -a "$LOG_FILE"
+        sleep 2
+    done
+
+    if [ "$MIGRATION_FOUND" = false ]; then
+        echo "❌ No migration found after 60 seconds" | tee -a "$LOG_FILE"
+        echo "Please check:" | tee -a "$LOG_FILE"
+        echo "1. Migration job launched successfully in AAP" | tee -a "$LOG_FILE"
+        echo "2. Migration plan created in OpenShift" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+else
+    echo "OpenShift CLI not available" | tee -a "$LOG_FILE"
     echo "MANUAL STEP:" | tee -a "$LOG_FILE"
     echo "1. Find migration job template ID from list above" | tee -a "$LOG_FILE"
     echo "2. Run: export MIGRATION_JT_ID=<id> && ./test-vma-migration-simple.sh" | tee -a "$LOG_FILE"
