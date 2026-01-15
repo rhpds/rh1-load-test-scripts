@@ -129,7 +129,7 @@ if [ -n "$MIGRATION" ]; then
 else
     # Create new migration
     echo "Creating migration plan..." | tee -a "$LOG_FILE"
-    echo "VM to migrate: $VM_FOLDER/win2019-1" | tee -a "$LOG_FILE"
+    echo "VM to migrate: $VM_FOLDER/windows2019-1" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
 
     PLAN_NAME="test-capacity-$(date +%s)"
@@ -158,7 +158,7 @@ spec:
   targetNamespace: $MTV_NS
   warm: false
   vms:
-    - id: vm-/$VM_FOLDER/win2019-1
+    - id: vm-/$VM_FOLDER/windows2019-1
 EOF
 
     if [ $? -ne 0 ]; then
