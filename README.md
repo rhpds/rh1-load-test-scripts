@@ -2,9 +2,40 @@
 
 Test scripts for validating infrastructure capacity for RH1 2026 event labs.
 
-**Primary Use Case**: RIPU Lab (LB1542) - Automating RHEL In-Place Upgrades with Ansible
+**Supported Labs**:
+- **LB1542**: RIPU - Automating RHEL In-Place Upgrades with Ansible
+- **LB6618**: VMA Factory - VMware to OpenShift Migration
 
 ---
+
+## Scripts by Lab
+
+### LB1542 RIPU Scripts
+- `test-ripu-repo-metadata-size.sh` - Query RHEL 9 package sizes
+- `test-demosat-bandwidth.sh` - Test network to Demosat satellite
+- `test-storage-speed.sh` - Test Ceph write speed (shared)
+- `test-storage-speed-parallel.sh` - Test Ceph aggregate (shared)
+- `run-all-ripu-tests.sh` - Run all RIPU tests in sequence
+
+### LB6618 VMA Factory Scripts
+- **`test-vma-migration-simple.sh`** ⭐ **Fully automated** - Zero config needed
+- `test-vcenter-vm-sizes.sh` - Query VM sizes from vCenter
+- `test-vm-migration-sizes.sh` - Query VM sizes from OpenShift/MTV
+- `test-migration-bandwidth.sh` - Monitor migration performance
+- `test-storage-speed.sh` - Test Ceph write speed (shared)
+- `test-storage-speed-parallel.sh` - Test Ceph aggregate (shared)
+- `run-all-vma-tests.sh` - Run all VMA tests in sequence
+
+---
+
+## Quick Navigation
+
+- [LB1542 RIPU Testing](#lb1542-ripu-lab-testing)
+- [LB6618 VMA Factory Testing](#lb6618-vma-factory-lab-testing)
+
+---
+
+# LB1542 RIPU Lab Testing
 
 ## Quick Start
 
@@ -557,6 +588,487 @@ grep "Sustained speed:" demosat-*.log | \
 
 If aggregate ≥ 1.5 GB/s → Simple 2-wave execution
 If aggregate < 1.5 GB/s → Need multi-wave stagger (more complex)
+
+---
+
+# LB6618 VMA Factory Lab Testing
+
+## Quick Start
+
+### 1. Provision VMA Factory Lab Environment
+
+**Lab Catalog URL**: https://catalog.demo.redhat.com/catalog?search=LB6618&item=babylon-catalog-dev%2Fopenshift-cnv.etx-virt-vma-factory.dev
+
+**Provision Lab**:
+1. Go to catalog URL above
+2. Order lab: **"VMA Factory - VMware to OpenShift Migration"** (LB6618)
+3. Wait for provisioning to complete (~20-30 minutes)
+4. Note the lab access details (SSH credentials, bastion IP, OpenShift console)
+
+**Lab Environment** (per user):
+- 1 SNO (Single Node OpenShift) cluster
+- 3 Workers (32GB RAM, 16 cores each)
+- VMware vCenter with 2 Windows VMs (win2019-1, win2019-2)
+- MTV (Migration Toolkit for Virtualization) v2.10
+- AAP (Ansible Automation Platform) 2.6
+
+---
+
+## Test Scripts Overview
+
+| Script | Purpose | Runtime | Where to Run |
+|--------|---------|---------|--------------|
+| **`test-vma-migration-simple.sh`** | **🎯 Fully automated migration test** | **15-30 min** | **Bastion** |
+| `test-vm-migration-sizes.sh` | Query VM disk sizes from vCenter/OpenShift | ~2 min | Bastion |
+| `test-migration-bandwidth.sh` | Monitor migration performance | Varies | Bastion (during migration) |
+| `test-storage-speed.sh` | Test Ceph write performance | ~5 min | Bastion or any VM |
+| `test-storage-speed-parallel.sh` | Test Ceph aggregate throughput | ~2 min | Bastion or any VM |
+
+**⭐ Recommended**: Use `test-vma-migration-simple.sh` - it auto-detects everything and provides complete capacity analysis.
+
+---
+
+## 🚀 Quick Start (One Command)
+
+**For L1/L2 Teams - Simplest Method**:
+
+```bash
+# SSH to bastion and run:
+cd ~/
+git clone https://github.com/rhpds/rh1-load-test-scripts.git
+cd rh1-load-test-scripts
+./test-vma-migration-simple.sh
+```
+
+**That's it!** The script will:
+- ✅ Auto-detect AAP namespace, credentials, and URL
+- ✅ Auto-find and launch migration job template
+- ✅ Monitor migration progress automatically
+- ✅ Calculate bandwidth and capacity for 60 users
+- ✅ Provide execution recommendation (all concurrent vs wave stagger)
+
+**Expected runtime**: 15-30 minutes
+
+---
+
+## Manual Testing (Advanced)
+
+If you need more control or want to run individual tests:
+
+### Pre-Requisites
+
+**Access the Lab**:
+```bash
+# SSH to bastion
+ssh lab-user@<bastion-ip>
+
+# Log into OpenShift (if not already logged in)
+oc login -u admin -p <password> https://api.<cluster-domain>:6443
+```
+
+**Download Test Scripts**:
+```bash
+# Clone repository
+cd ~/
+git clone https://github.com/rhpds/rh1-load-test-scripts.git
+cd rh1-load-test-scripts
+
+# Make scripts executable
+chmod +x test-vm-migration-sizes.sh
+chmod +x test-migration-bandwidth.sh
+chmod +x test-storage-speed.sh
+chmod +x test-storage-speed-parallel.sh
+chmod +x test-vma-migration-simple.sh
+```
+
+---
+
+## Test 1: VM Disk Size Query
+
+**Purpose**: Determine actual VM disk sizes to calculate total migration data
+
+**Run On**: Bastion (with OpenShift CLI access)
+
+```bash
+# From bastion
+./test-vm-migration-sizes.sh
+```
+
+**What It Does**:
+- Queries OpenShift for existing VirtualMachines
+- Checks MTV migration plans
+- Calculates capacity requirements for 60 users × 2 VMs = 120 migrations
+
+**Expected Output**:
+```
+Data Transfer Scenarios:
+
+Scenario: 50 GB per VM
+  Per user (2 VMs): 100 GB
+  All 60 users: 6000 GB (5.86 TB)
+
+Scenario: 75 GB per VM
+  Per user (2 VMs): 150 GB
+  All 60 users: 9000 GB (8.79 TB)
+
+Scenario: 100 GB per VM
+  Per user (2 VMs): 200 GB
+  All 60 users: 12000 GB (11.72 TB)
+```
+
+**What This Tells You**:
+- Total data that needs to migrate from VMware to OpenShift
+- Network bandwidth requirements (vCenter → CNV cluster)
+- Ceph storage write requirements (120 VMs writing simultaneously)
+
+**Log File**: `vm-migration-sizes-<timestamp>.log`
+
+---
+
+## Test 2: Migration Bandwidth Monitoring
+
+**Purpose**: Monitor actual migration performance and identify bottlenecks
+
+**Run On**: Bastion (during or after a test migration)
+
+```bash
+# From bastion
+./test-migration-bandwidth.sh
+```
+
+**What It Does**:
+- Checks for MTV installation and configuration
+- Finds vCenter provider connection
+- Monitors active migrations if running
+- Tests network latency to vCenter
+- Analyzes completed migration performance
+
+**Expected Output**:
+```
+Migration: win2019-1-migration
+Status: Succeeded
+Started: 2026-01-15T10:00:00Z
+Completed: 2026-01-15T10:15:00Z
+Duration: 900s (15.0 minutes)
+VM: win2019-1
+
+Network Latency to vCenter:
+  Average latency: 2.5ms
+  Packet loss: 0%
+
+Bandwidth Requirements (for different VM sizes):
+
+50 GB per VM (6000 GB total):
+  60-min window: 1706.67 MB/s (1.67 GB/s)
+  30-min window: 3413.33 MB/s (3.33 GB/s)
+```
+
+**What This Tells You**:
+- Actual migration time per VM
+- Network performance (vCenter → OpenShift)
+- Whether 60 concurrent migrations will fit in event time window
+
+**Log File**: `migration-bandwidth-test-<timestamp>.log`
+
+---
+
+## Test 3: Storage Write Speed
+
+**Purpose**: Validate Ceph can handle 120 VMs writing simultaneously
+
+**Run On**: Bastion or any VM with Ceph storage
+
+```bash
+# From bastion
+./test-storage-speed.sh
+```
+
+**Expected Output**:
+```
+Sequential write: 240 MB/s
+Random IOPS: 3,664 IOPS
+Sustained write (30s): 240 MB/s
+
+Per-VM requirement: 28 MB/s (100GB ÷ 60min)
+✅ PASS: Storage adequate for single VM
+```
+
+**What This Tells You**:
+- Single VM can write at 240 MB/s to Ceph
+- Requirement is 28 MB/s per VM (for 100 GB migration over 60 minutes)
+- ✅ Ceph performance is adequate per-VM
+
+**Log File**: `storage-speed-test-<timestamp>.log`
+
+---
+
+## Test 4: Storage Aggregate Throughput
+
+**Purpose**: Test Ceph performance with multiple parallel writers (simulates 120 VMs)
+
+**Run On**: Bastion or any VM
+
+```bash
+# Run with 10 parallel workers, 60 second test
+./test-storage-speed-parallel.sh 10 /var/tmp 60
+```
+
+**Expected Output**:
+```
+Parallel workers: 10
+Aggregate throughput: 2,400 MB/s (2.34 GB/s)
+
+Extrapolated performance:
+  Per VM: 240 MB/s
+  60 VMs: 14.4 GB/s
+  120 VMs: 28.8 GB/s
+
+Requirement for 60-min window: 3.33 GB/s (100GB VMs)
+✅ PASS: Ceph can handle aggregate load
+```
+
+**What This Tells You**:
+- Ceph aggregate throughput scales linearly
+- Can handle 120 VMs writing simultaneously (2.34+ GB/s)
+- ✅ Storage is NOT the bottleneck
+
+**Log File**: `storage-parallel-test-<timestamp>.log`
+
+---
+
+## Capacity Requirements Summary
+
+### For 60 Users (120 Windows VMs total)
+
+| VM Size | Total Data | Bandwidth (60min) | Bandwidth (30min) | Storage Write |
+|---------|-----------|-------------------|-------------------|---------------|
+| 50 GB/VM | 6.0 TB | 1.67 GB/s | 3.33 GB/s | 1.67 GB/s |
+| 75 GB/VM | 9.0 TB | 2.50 GB/s | 5.00 GB/s | 2.50 GB/s |
+| 100 GB/VM | 12.0 TB | 3.33 GB/s | 6.67 GB/s | 3.33 GB/s |
+
+### Decision Matrix
+
+**Based on actual VM sizes and test results**:
+
+| Bottleneck | Test Result | Requirement | Status |
+|------------|-------------|-------------|--------|
+| VM Disk Size | **Measure actual** | N/A | ⚠️ Test required |
+| Migration Speed | **Measure actual** | 1.67-3.33 GB/s | ⚠️ Test required |
+| Storage (per VM) | 240 MB/s | 28 MB/s | ✅ Adequate |
+| Storage (aggregate) | 2.34+ GB/s | 1.67-3.33 GB/s | ✅ Likely adequate |
+| Network (vCenter→CNV) | **Measure actual** | 1.67-3.33 GB/s | ⚠️ Test required |
+| MTV Concurrency | **Test required** | 60-120 concurrent | ⚠️ Unknown |
+
+### Execution Strategy
+
+**Recommendation**: Run actual test migration first to determine:
+
+1. **Actual VM disk size** (provisioned vs used)
+2. **Migration time** per VM
+3. **MTV concurrency limits** (how many simultaneous migrations?)
+
+**Possible Execution Strategies**:
+
+| Strategy | Approach | User Experience | Risk |
+|----------|----------|-----------------|------|
+| **All Concurrent** | 60 users migrate at same time | ✅ Excellent - all users start together | ⚠️ Requires high bandwidth + MTV capacity |
+| **2-Wave Stagger** | 30 users, wait, then 30 more | ✅ Good - simple coordination | ⚠️ Need 1.67+ GB/s per wave |
+| **4-Wave Stagger** | 15 users per wave | ⚠️ Moderate - some waiting | ✅ Lower bandwidth requirement |
+| **Sequential** | Users migrate one at a time | ❌ Poor - long wait times | ✅ Safest, lowest resource usage |
+
+---
+
+## Test Sequence for Infrastructure Team
+
+**Recommended testing order**:
+
+### Step 1: Provision Lab
+```bash
+# Order VMA Factory lab from catalog
+# https://catalog.demo.redhat.com/catalog?search=LB6618&item=babylon-catalog-dev%2Fopenshift-cnv.etx-virt-vma-factory.dev
+```
+
+### Step 2: Quick Verification
+```bash
+# SSH to bastion
+ssh lab-user@<bastion-ip>
+
+# Log into OpenShift
+oc login -u admin -p <password>
+
+# Verify you can see VMs
+oc get vms -A
+```
+
+### Step 3: Run VM Size Query
+```bash
+cd ~/
+git clone https://github.com/rhpds/rh1-load-test-scripts.git
+cd rh1-load-test-scripts
+
+./test-vm-migration-sizes.sh
+
+# Check result
+grep "Scenario:" vm-migration-sizes-*.log
+```
+
+### Step 4: Run Storage Tests
+```bash
+# Single VM storage test
+./test-storage-speed.sh
+
+# Multi-worker storage test
+./test-storage-speed-parallel.sh 10 /var/tmp 60
+```
+
+### Step 5: Run Test Migration (CRITICAL)
+```bash
+# Via AAP job template or MTV console:
+# 1. Select ONE Windows VM to migrate
+# 2. Start migration
+# 3. Monitor with: ./test-migration-bandwidth.sh
+# 4. Record: VM size, migration time, bandwidth
+
+# Example calculation:
+# VM size: 75 GB
+# Migration time: 15 minutes (900 seconds)
+# Bandwidth: 75 GB / 900 s = 83.3 MB/s per VM
+# Extrapolate to 60 users: 83.3 MB/s × 60 = 5.0 GB/s needed
+```
+
+### Step 6: Test Concurrent Migrations (If Possible)
+```bash
+# Via MTV or AAP:
+# 1. Start 5-10 migrations simultaneously
+# 2. Monitor with: ./test-migration-bandwidth.sh
+# 3. Check for:
+#    - MTV resource constraints (CPU/memory)
+#    - Network congestion
+#    - Ceph write bottlenecks
+#    - vCenter API limits
+```
+
+### Step 7: Collect and Share Results
+```bash
+# Collect all log files
+mkdir -p ~/test-results
+cp *.log ~/test-results/
+
+# Create summary
+cat > ~/test-results/SUMMARY.txt << 'EOF'
+RH1 2026 VMA Factory Lab - Infrastructure Test Results
+=======================================================
+
+VM Size Test:
+  - Check: vm-migration-sizes-*.log
+  - Look for: Actual VM disk sizes (win2019-1, win2019-2)
+
+Storage Tests:
+  - Single VM: storage-speed-test-*.log
+  - Look for: "Sequential write: X MB/s"
+  - Parallel: storage-parallel-test-*.log
+  - Look for: "Aggregate throughput: X GB/s"
+
+Migration Test (CRITICAL):
+  - Files: migration-bandwidth-test-*.log
+  - Look for: Actual migration time and bandwidth
+  - Calculate: Can 60 users migrate in 60-minute window?
+
+Decision: Based on actual migration test results
+EOF
+
+# Archive results
+tar -czf ~/vma-test-results-$(date +%Y%m%d-%H%M%S).tar.gz -C ~/ test-results/
+```
+
+---
+
+## Troubleshooting
+
+### Script Won't Run
+
+**Problem**: Permission denied
+```bash
+# Solution: Make executable
+chmod +x test-*.sh
+```
+
+**Problem**: OpenShift CLI not found
+```bash
+# Solution: Install oc CLI
+sudo dnf install -y openshift-clients
+```
+
+### No VM Data Available
+
+**If VM size query shows no results**:
+
+1. **Migration not started yet**
+   - VMs only appear in OpenShift after migration begins
+   - Log into vCenter web UI to check VM sizes manually
+
+2. **Check vCenter provider**
+   ```bash
+   oc get providers -A
+   oc describe provider <name> -n <namespace>
+   ```
+
+3. **Check MTV installation**
+   ```bash
+   oc get pods -n openshift-mtv
+   ```
+
+### Low Migration Performance
+
+**If test migration is slow (<10 MB/s)**:
+
+1. **Check network path**
+   ```bash
+   # From bastion, test connectivity to vCenter
+   ping <vcenter-hostname>
+   traceroute <vcenter-hostname>
+   ```
+
+2. **Check vCenter load**
+   - Log into vCenter web UI
+   - Check CPU/memory usage during migration
+
+3. **Check MTV resources**
+   ```bash
+   oc get pods -n openshift-mtv
+   oc logs <mtv-controller-pod> -n openshift-mtv
+   ```
+
+4. **Check Ceph performance**
+   ```bash
+   # Run storage test during migration
+   ./test-storage-speed.sh
+   ```
+
+---
+
+## Expected Test Duration
+
+| Test | Duration | Can Run in Parallel? |
+|------|----------|---------------------|
+| VM size query | 2 min | N/A |
+| Storage single VM | 5 min | Yes (different VMs) |
+| Storage parallel | 2 min | Yes (different VMs) |
+| Migration bandwidth | Ongoing | During actual migration |
+| **Test migration (1 VM)** | **15-30 min** | **CRITICAL - must measure** |
+| **Concurrent test (5 VMs)** | **15-30 min** | **CRITICAL - validates capacity** |
+
+**Total Testing Time**: ~30-60 minutes for complete validation
+
+---
+
+## Contact and Support
+
+**Report Owner**: Prakhar Srivastava - RHDP Team
+
+**Questions or Issues**:
+- GitHub Issues: https://github.com/rhpds/rh1-load-test-scripts/issues
+- Include test logs and environment details
 
 ---
 
