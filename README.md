@@ -20,7 +20,45 @@ chmod +x test-vm-migration-metrics.sh
 - Actual package download size
 - Disk I/O patterns (IOPS)
 - Transfer time and bandwidth
-- Calculates impact for 168 concurrent upgrades
+- Calculates impact for 180 concurrent upgrades (60 users × 3 VMs)
+
+**Two Options Available**:
+
+### Option A: Direct Leapp Execution ⭐ **RECOMMENDED** (No AAP required)
+
+**Prerequisites**:
+- One RHEL 7, 8, or 9 VM (any lab or standalone)
+- Root access via sudo
+
+**How to run**:
+
+```bash
+# 1. SSH to RHEL VM as root or with sudo access
+ssh root@rhel-vm.example.com
+
+# 2. Copy and run the script
+curl -O https://raw.githubusercontent.com/rhpds/rh1-load-test-scripts/main/test-leapp-upgrade-metrics-direct.sh
+chmod +x test-leapp-upgrade-metrics-direct.sh
+sudo ./test-leapp-upgrade-metrics-direct.sh
+
+# 3. Review preupgrade warnings (if any)
+
+# 4. Press ENTER to start upgrade (system will reboot automatically)
+
+# 5. After reboot, check results
+sudo cat /root/leapp-metrics-*.log
+```
+
+**What happens**:
+1. Script installs Leapp (if needed)
+2. Runs `leapp preupgrade` to check for issues
+3. Starts iostat monitoring in background
+4. Runs `leapp upgrade` (takes 30-90 minutes)
+5. System reboots automatically
+6. Post-upgrade measurements run automatically via systemd service
+7. Results saved to `/root/leapp-metrics-*.log`
+
+### Option B: With AAP Job Template (If you have RIPU lab deployed)
 
 **Prerequisites**:
 - One RIPU lab deployed (LB1542)
@@ -30,26 +68,19 @@ chmod +x test-vm-migration-metrics.sh
 **How to run**:
 
 ```bash
-# 1. SSH to bastion
-ssh lab-user@bastion.example.com
-
-# 2. Copy script to bastion
-scp test-leapp-upgrade-metrics.sh lab-user@bastion:~/
-
-# 3. SSH to one of the RHEL nodes
+# 1. SSH to one of the RHEL nodes
 ssh node1
 
-# 4. Copy script to the node
-scp ~/test-leapp-upgrade-metrics.sh node1:~/
-
-# 5. Run the script
+# 2. Copy and run script
+curl -O https://raw.githubusercontent.com/rhpds/rh1-load-test-scripts/main/test-leapp-upgrade-metrics.sh
+chmod +x test-leapp-upgrade-metrics.sh
 sudo ./test-leapp-upgrade-metrics.sh
 
-# 6. When prompted, launch the AAP job "AUTO / 02 Upgrade" in web UI
+# 3. When prompted, launch the AAP job "AUTO / 02 Upgrade" in web UI
 
-# 7. Press ENTER when the upgrade completes
+# 4. Press ENTER when the upgrade completes
 
-# 8. Review results
+# 5. Review results
 cat leapp-metrics-*.log
 ```
 
