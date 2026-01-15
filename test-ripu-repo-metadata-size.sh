@@ -9,6 +9,13 @@ echo "Started: $(date)" | tee -a "$LOG_FILE"
 echo "Hostname: $(hostname)" | tee -a "$LOG_FILE"
 echo "================================" | tee -a "$LOG_FILE"
 
+# 0. Install bc if needed
+if ! command -v bc &> /dev/null; then
+    echo "" | tee -a "$LOG_FILE"
+    echo "0. Installing bc calculator..." | tee -a "$LOG_FILE"
+    sudo dnf install -y bc 2>&1 | tee -a "$LOG_FILE" || sudo yum install -y bc 2>&1 | tee -a "$LOG_FILE"
+fi
+
 # 1. Get current system info
 echo "" | tee -a "$LOG_FILE"
 echo "1. Current System Info" | tee -a "$LOG_FILE"

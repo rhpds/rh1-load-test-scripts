@@ -17,6 +17,13 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# 1.5. Install bc if needed
+if ! command -v bc &> /dev/null; then
+    echo "" | tee -a "$LOG_FILE"
+    echo "Installing bc calculator..." | tee -a "$LOG_FILE"
+    dnf install -y bc 2>&1 | tee -a "$LOG_FILE" || yum install -y bc 2>&1 | tee -a "$LOG_FILE"
+fi
+
 # 2. Get initial system info
 echo "" | tee -a "$LOG_FILE"
 echo "1. Initial System Info" | tee -a "$LOG_FILE"
