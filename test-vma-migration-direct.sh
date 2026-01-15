@@ -49,6 +49,7 @@ if [ -z "$PROVIDER_EXISTS" ]; then
     read -p "Enter vCenter username (from lab page, e.g., sandbox-rh2c6-1@infra): " VCENTER_USER
     read -sp "Enter vCenter password (from lab page): " VCENTER_PASSWORD
     echo
+    read -p "Enter VM folder path (from lab page vcenter_vm_folder, e.g., Workloads/sandbox-rh2c6-1): " VM_FOLDER
     echo "" | tee -a "$LOG_FILE"
 
     # Create secret
@@ -110,6 +111,10 @@ EOF
 else
     echo "✅ VMware provider '$PROVIDER_NAME' exists" | tee -a "$LOG_FILE"
     echo "" | tee -a "$LOG_FILE"
+
+    # Still need VM folder path
+    read -p "Enter VM folder path (from lab page vcenter_vm_folder, e.g., Workloads/sandbox-rh2c6-1): " VM_FOLDER
+    echo "" | tee -a "$LOG_FILE"
 fi
 
 # Check if migration already running
@@ -124,6 +129,8 @@ if [ -n "$MIGRATION" ]; then
 else
     # Create new migration
     echo "Creating migration plan..." | tee -a "$LOG_FILE"
+    echo "VM to migrate: $VM_FOLDER/win2019-1" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
 
     PLAN_NAME="test-capacity-$(date +%s)"
 
@@ -151,7 +158,7 @@ spec:
   targetNamespace: $MTV_NS
   warm: false
   vms:
-    - id: vm-/RS00/vm/ETX/student-$STUDENT_ID/win2019-1
+    - id: vm-/$VM_FOLDER/win2019-1
 EOF
 
     if [ $? -ne 0 ]; then
