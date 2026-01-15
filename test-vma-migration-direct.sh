@@ -43,10 +43,13 @@ if [ -z "$PROVIDER_EXISTS" ]; then
     echo "Creating VMware provider..." | tee -a "$LOG_FILE"
 
     # Prompt for vCenter details
-    read -p "Enter vCenter URL (e.g., vcsnsx-vc.infra.demo.redhat.com): " VCENTER_HOST
-    read -p "Enter vCenter username (e.g., sandbox-rh2c6-1@infra): " VCENTER_USER
-    read -sp "Enter vCenter password: " VCENTER_PASSWORD
+    echo "Get credentials from your lab access page" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+    read -p "Enter vCenter hostname (just hostname, e.g., vcsnsx-vc.infra.demo.redhat.com): " VCENTER_HOST
+    read -p "Enter vCenter username (from lab page, e.g., sandbox-rh2c6-1@infra): " VCENTER_USER
+    read -sp "Enter vCenter password (from lab page): " VCENTER_PASSWORD
     echo
+    echo "" | tee -a "$LOG_FILE"
 
     # Create secret
     echo "Creating vCenter credentials secret..." | tee -a "$LOG_FILE"
