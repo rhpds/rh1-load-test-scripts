@@ -188,65 +188,89 @@ else
     echo "" | tee -a "$LOG_FILE"
 fi
 
-echo "" | tee -a "$LOG_FILE"
-echo "📋 MANUAL MIGRATION REQUIRED" | tee -a "$LOG_FILE"
-echo "================================" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-echo "According to the VMA Factory lab, you need to:" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-echo "1. Open AAP Controller web UI:" | tee -a "$LOG_FILE"
-echo "   $AAP_URL" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-echo "2. Login with:" | tee -a "$LOG_FILE"
-echo "   Username: $AAP_USERNAME" | tee -a "$LOG_FILE"
-echo "   Password: [from secret]" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-echo "3. Find job template: 'OpenShift Virtualization Migration - Migrate - etx.redhat.com'" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-echo "4. For CAPACITY TESTING, migrate ONLY 1 VM (not 2):" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-cat >> "$LOG_FILE" << 'EOF'
-   Click the rocket icon and enter these variables:
-
-   mtv_migrate_migration_request:
-     mtv_namespace: vmexamples-automation
-     source: vmware-etx
-     source_namespace: openshift-mtv
-     destination_namespace: openshift-mtv
-     network_map: vmware-etx-host
-     network_map_namespace: vmexamples-automation
-     storage_map: vmware-etx-host
-     storage_map_namespace: vmexamples-automation
-     plan_name: capacity-test-migration
-     start_migration: true
-     vms:
-       - path: "/RS00/vm/ETX/student-01/win2019-1"
-
-   (Replace student-01 with your actual student ID)
-EOF
-
-cat >> "$LOG_FILE" << 'EOF'
-
-5. Click Next, then Finish to start the migration
-
-6. Come back to this terminal - the script will detect and monitor it!
-
-EOF
-
-echo "⏳ WAITING for you to start the migration in AAP..." | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
-echo "Press ENTER once you've launched the migration job in AAP UI"
-read -p "" READY
+if [ -z "$MIGRATION_JT" ]; then
+    echo "❌ Cannot proceed without job template" | tee -a "$LOG_FILE"
+    echo "" | tee -a "$LOG_FILE"
+    echo "Try manually:" | tee -a "$LOG_FILE"
+    echo "1. Open AAP: $AAP_URL" | tee -a "$LOG_FILE"
+    echo "2. Find 'OpenShift Virtualization Migration - Migrate - etx.redhat.com'" | tee -a "$LOG_FILE"
+    echo "3. Launch with migration variables" | tee -a "$LOG_FILE"
+    exit 1
+fi
 
 echo "" | tee -a "$LOG_FILE"
-echo "STEP 3: Monitoring Migration" | tee -a "$LOG_FILE"
+echo "STEP 3: Launching Migration via API" | tee -a "$LOG_FILE"
 echo "================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-# Now find the running migration
-echo "Searching for active migration..." | tee -a "$LOG_FILE"
+# Auto-detect student ID from project or use default
+STUDENT_ID="${STUDENT_ID:-01}"
+if command -v oc &> /dev/null; then
+    CURRENT_PROJECT=$(oc project -q 2>/dev/null)
+    if [[ $CURRENT_PROJECT =~ student-([0-9]+) ]]; then
+        STUDENT_ID="${BASH_REMATCH[1]}"
+        echo "Detected student ID from project: $STUDENT_ID" | tee -a "$LOG_FILE"
+    fi
+fi
+
+echo "Using student ID: $STUDENT_ID" | tee -a "$LOG_FILE"
+echo "VM to migrate: /RS00/vm/ETX/student-$STUDENT_ID/win2019-1" | tee -a "$LOG_FILE"
+
+# Create migration request JSON
+MIGRATION_REQUEST_JSON=$(cat <<EOF
+{
+  "extra_vars": {
+    "mtv_migrate_migration_request": {
+      "mtv_namespace": "vmexamples-automation",
+      "source": "vmware-etx",
+      "source_namespace": "openshift-mtv",
+      "destination_namespace": "openshift-mtv",
+      "network_map": "vmware-etx-host",
+      "network_map_namespace": "vmexamples-automation",
+      "storage_map": "vmware-etx-host",
+      "storage_map_namespace": "vmexamples-automation",
+      "plan_name": "capacity-test-migration-$STUDENT_ID",
+      "start_migration": true,
+      "vms": [
+        {
+          "path": "/RS00/vm/ETX/student-$STUDENT_ID/win2019-1"
+        }
+      ]
+    }
+  }
+}
+EOF
+)
+
+echo "" | tee -a "$LOG_FILE"
+echo "Launching migration job via AAP API..." | tee -a "$LOG_FILE"
 
 START_TIME=$(date +%s)
+START_TIME_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Launch migration job
+LAUNCH_RESPONSE=$(curl -k -s -X POST "$AAP_URL/api/v2/job_templates/$MIGRATION_JT_ID/launch/" \
+    -u "$AAP_USERNAME:$AAP_PASSWORD" \
+    -H "Content-Type: application/json" \
+    -d "$MIGRATION_REQUEST_JSON" 2>&1)
+
+JOB_ID=$(echo "$LAUNCH_RESPONSE" | jq -r '.id' 2>/dev/null)
+
+if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "null" ]; then
+    echo "❌ Failed to launch migration job" | tee -a "$LOG_FILE"
+    echo "Response: $LAUNCH_RESPONSE" | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+echo "✅ Migration job launched successfully" | tee -a "$LOG_FILE"
+echo "   Job ID: $JOB_ID" | tee -a "$LOG_FILE"
+echo "   Start time: $START_TIME_ISO" | tee -a "$LOG_FILE"
+echo "   Watch in AAP: $AAP_URL/#/jobs/playbook/$JOB_ID" | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+echo "STEP 4: Monitoring Migration" | tee -a "$LOG_FILE"
+echo "================================" | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
 
 # Monitor for migrations via OpenShift
 if command -v oc &> /dev/null; then
@@ -284,80 +308,6 @@ else
     echo "2. Run: export MIGRATION_JT_ID=<id> && ./test-vma-migration-simple.sh" | tee -a "$LOG_FILE"
     exit 1
 fi
-
-MIGRATION_JT_ID=$(echo "$MIGRATION_JT" | jq -r '.id')
-MIGRATION_JT_NAME=$(echo "$MIGRATION_JT" | jq -r '.name')
-
-echo "✅ Found: $MIGRATION_JT_NAME" | tee -a "$LOG_FILE"
-echo "   Job Template ID: $MIGRATION_JT_ID" | tee -a "$LOG_FILE"
-
-echo "" | tee -a "$LOG_FILE"
-echo "STEP 3: Launching Migration" | tee -a "$LOG_FILE"
-echo "================================" | tee -a "$LOG_FILE"
-
-START_TIME=$(date +%s)
-START_TIME_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-# Launch migration job
-LAUNCH_RESPONSE=$(curl -k -s -X POST "$AAP_URL/api/v2/job_templates/$MIGRATION_JT_ID/launch/" \
-    -u "$AAP_USERNAME:$AAP_PASSWORD" \
-    -H "Content-Type: application/json" 2>&1)
-
-JOB_ID=$(echo "$LAUNCH_RESPONSE" | jq -r '.id' 2>/dev/null)
-
-if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "null" ]; then
-    echo "❌ Failed to launch migration job" | tee -a "$LOG_FILE"
-    echo "Response: $LAUNCH_RESPONSE" | tee -a "$LOG_FILE"
-    exit 1
-fi
-
-echo "✅ Migration job started" | tee -a "$LOG_FILE"
-echo "   Job ID: $JOB_ID" | tee -a "$LOG_FILE"
-echo "   Start time: $START_TIME_ISO" | tee -a "$LOG_FILE"
-echo "   Watch progress: $AAP_URL/#/jobs/playbook/$JOB_ID" | tee -a "$LOG_FILE"
-
-echo "" | tee -a "$LOG_FILE"
-echo "STEP 4: Monitoring Migration (this may take 10-30 minutes)" | tee -a "$LOG_FILE"
-echo "================================" | tee -a "$LOG_FILE"
-
-# Monitor loop
-COMPLETE=false
-ITERATION=0
-
-while [ "$COMPLETE" = false ] && [ $ITERATION -lt 120 ]; do
-    ITERATION=$((ITERATION + 1))
-
-    # Check job status
-    JOB_STATUS=$(curl -k -s "$AAP_URL/api/v2/jobs/$JOB_ID/" \
-        -u "$AAP_USERNAME:$AAP_PASSWORD" 2>&1)
-
-    STATE=$(echo "$JOB_STATUS" | jq -r '.status' 2>/dev/null)
-
-    # Show progress every 5 iterations (every 2.5 minutes)
-    if [ $((ITERATION % 5)) -eq 0 ]; then
-        ELAPSED=$(($(date +%s) - START_TIME))
-        ELAPSED_MIN=$((ELAPSED / 60))
-        echo "   [$ELAPSED_MIN min] Status: $STATE" | tee -a "$LOG_FILE"
-    fi
-
-    if [ "$STATE" = "successful" ]; then
-        COMPLETE=true
-        echo "✅ Migration completed successfully!" | tee -a "$LOG_FILE"
-    elif [ "$STATE" = "failed" ]; then
-        echo "❌ Migration failed" | tee -a "$LOG_FILE"
-        echo "Check AAP job: $AAP_URL/#/jobs/playbook/$JOB_ID" | tee -a "$LOG_FILE"
-        exit 1
-    fi
-
-    if [ "$COMPLETE" = false ]; then
-        sleep 30
-    fi
-done
-
-END_TIME=$(date +%s)
-END_TIME_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-echo "" | tee -a "$LOG_FILE"
 echo "STEP 5: Results & Capacity Analysis" | tee -a "$LOG_FILE"
 echo "========================================" | tee -a "$LOG_FILE"
 
