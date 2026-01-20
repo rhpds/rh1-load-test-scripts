@@ -130,7 +130,7 @@ if [ -f "$RESULTS_DIR/completion.log" ]; then
     echo "  Failed: $FAILED / $BASTION_COUNT" | tee -a "$RESULTS_DIR/SUMMARY.txt"
     echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-    if [ $FAILED -gt 0 ]; then
+    if [ "$FAILED" -gt 0 ]; then
         echo "Failed Tests:" | tee -a "$RESULTS_DIR/SUMMARY.txt"
         grep "❌" "$RESULTS_DIR/completion.log" | tee -a "$RESULTS_DIR/SUMMARY.txt"
         echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
@@ -147,19 +147,21 @@ echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "Timing Analysis:" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-grep "API Launch:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
-  awk -F': ' '{gsub(/s/, "", $2); sum+=$2; count++} END {
+grep -h "API Launch:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
+  awk -F': ' '{gsub(/[^0-9.]/, "", $NF); sum+=$NF; count++} END {
     if (count > 0) {
       printf "API Launch Time:\n";
       printf "  Average: %.2fs\n", sum/count;
       printf "  Users tested: %d\n", count;
+    } else {
+      printf "API Launch Time: No data\n";
     }
   }' | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-grep "Queue Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
-  awk -F': ' '{gsub(/s/, "", $2); sum+=$2; count++; if ($2 > max) max=$2} END {
+grep -h "Queue Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
+  awk -F': ' '{gsub(/[^0-9.]/, "", $NF); val=$NF+0; sum+=val; count++; if (val > max) max=val} END {
     if (count > 0) {
       printf "Queue Time (waiting for capacity):\n";
       printf "  Average: %.2fs\n", sum/count;
@@ -174,30 +176,36 @@ grep "Queue Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
       } else {
         print "  ✅ GOOD: Minimal queueing";
       }
+    } else {
+      printf "Queue Time: No data\n";
     }
   }' | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-grep "Execution Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
-  awk -F': ' '{gsub(/s/, "", $2); sum+=$2; count++} END {
+grep -h "Execution Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
+  awk -F': ' '{gsub(/[^0-9.]/, "", $NF); sum+=$NF; count++} END {
     if (count > 0) {
       printf "Job Execution Time:\n";
       printf "  Average: %.2fs\n", sum/count;
       printf "  Users tested: %d\n", count;
+    } else {
+      printf "Job Execution Time: No data\n";
     }
   }' | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-grep "Total Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
-  awk -F': ' '{gsub(/s/, "", $2); sum+=$2; count++; if ($2 > max) max=$2; if (NR==1 || $2<min) min=$2} END {
+grep -h "Total Time:" "$RESULTS_DIR"/*-aap.log 2>/dev/null | \
+  awk -F': ' '{gsub(/[^0-9.]/, "", $NF); val=$NF+0; sum+=val; count++; if (val > max) max=val; if (NR==1 || val<min) min=val} END {
     if (count > 0) {
       printf "Total Time (launch to completion):\n";
       printf "  Average: %.2fs\n", sum/count;
       printf "  Fastest: %.2fs\n", min;
       printf "  Slowest: %.2fs\n", max;
       printf "  Users tested: %d\n", count;
+    } else {
+      printf "Total Time: No data\n";
     }
   }' | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
@@ -209,8 +217,8 @@ echo "JOB SUCCESS RATE" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "========================================" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-PASS_COUNT=$(grep -c "✅ PASS" "$RESULTS_DIR"/*-aap.log 2>/dev/null || echo 0)
-FAIL_COUNT=$(grep -c "❌ FAIL" "$RESULTS_DIR"/*-aap.log 2>/dev/null || echo 0)
+PASS_COUNT=$(grep -h "✅ PASS" "$RESULTS_DIR"/*-aap.log 2>/dev/null | wc -l || echo 0)
+FAIL_COUNT=$(grep -h "❌ FAIL" "$RESULTS_DIR"/*-aap.log 2>/dev/null | wc -l || echo 0)
 TOTAL_JOBS=$((PASS_COUNT + FAIL_COUNT))
 
 if [ $TOTAL_JOBS -gt 0 ]; then
