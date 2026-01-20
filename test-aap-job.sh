@@ -102,7 +102,11 @@ while [ "$JOB_STATUS" != "successful" ] && [ "$JOB_STATUS" != "failed" ] && [ "$
     JOB_INFO=$(curl -sk "${AAP_URL}/api/controller/v2/jobs/${JOB_ID}/" \
       -H "Authorization: Bearer $TOKEN" 2>&1)
 
-    JOB_STATUS=$(echo "$JOB_INFO" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if command -v python3 &> /dev/null; then
+        JOB_STATUS=$(echo "$JOB_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'unknown'))" 2>/dev/null || echo "unknown")
+    else
+        JOB_STATUS=$(echo "$JOB_INFO" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+    fi
     CURRENT_TIME=$(date +%s)
     ELAPSED=$((CURRENT_TIME - MONITOR_START))
 
@@ -140,13 +144,32 @@ echo "5. Job Results" | tee -a "$LOG_FILE"
 FINAL_INFO=$(curl -sk "${AAP_URL}/api/controller/v2/jobs/${JOB_ID}/" \
   -H "Authorization: Bearer $TOKEN" 2>&1)
 
-FINAL_STATUS=$(echo "$FINAL_INFO" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
-STARTED=$(echo "$FINAL_INFO" | grep -o '"started":"[^"]*"' | head -1 | cut -d'"' -f4)
-FINISHED=$(echo "$FINAL_INFO" | grep -o '"finished":"[^"]*"' | head -1 | cut -d'"' -f4)
+# Use python to parse JSON reliably
+if command -v python3 &> /dev/null; then
+    FINAL_STATUS=$(echo "$FINAL_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'unknown'))" 2>/dev/null || echo "unknown")
+    STARTED=$(echo "$FINAL_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('started', 'N/A'))" 2>/dev/null || echo "N/A")
+    FINISHED=$(echo "$FINAL_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('finished', 'N/A'))" 2>/dev/null || echo "N/A")
+    ELAPSED_AAP=$(echo "$FINAL_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('elapsed', 0))" 2>/dev/null || echo "0")
+else
+    # Fallback to grep (less reliable)
+    FINAL_STATUS=$(echo "$FINAL_INFO" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+    STARTED=$(echo "$FINAL_INFO" | grep -o '"started":"[^"]*"' | head -1 | cut -d'"' -f4)
+    FINISHED=$(echo "$FINAL_INFO" | grep -o '"finished":"[^"]*"' | head -1 | cut -d'"' -f4)
+    ELAPSED_AAP=$(echo "$FINAL_INFO" | grep -o '"elapsed":[0-9.]*' | head -1 | cut -d':' -f2)
+fi
 
 echo "   Final Status: $FINAL_STATUS" | tee -a "$LOG_FILE"
 echo "   Started: $STARTED" | tee -a "$LOG_FILE"
 echo "   Finished: $FINISHED" | tee -a "$LOG_FILE"
+echo "   Elapsed (AAP): ${ELAPSED_AAP}s" | tee -a "$LOG_FILE"
+
+# Recalculate times using AAP's data if our loop didn't capture it
+if [ $FIRST_RUNNING -eq 0 ] && [ -n "$ELAPSED_AAP" ]; then
+    # Job completed too fast, use AAP's timing
+    EXEC_TIME=$(echo "$ELAPSED_AAP" | awk '{printf "%.0f", $1}')
+    # Assume minimal queue time since job started immediately
+    QUEUE_TIME=0
+fi
 
 # Step 6: Performance summary
 echo "" | tee -a "$LOG_FILE"
@@ -156,11 +179,11 @@ echo "================================" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 echo "Timing Breakdown:" | tee -a "$LOG_FILE"
-echo "  Authentication: ${AUTH_TIME}s" | tee -a "$LOG_FILE"
-echo "  API Launch: ${LAUNCH_TIME}s" | tee -a "$LOG_FILE"
-echo "  Queue Time: ${QUEUE_TIME}s" | tee -a "$LOG_FILE"
-echo "  Execution Time: ${EXEC_TIME}s" | tee -a "$LOG_FILE"
-echo "  Total Time: ${TOTAL_TIME}s" | tee -a "$LOG_FILE"
+echo "  Authentication: ${AUTH_TIME:-0}s" | tee -a "$LOG_FILE"
+echo "  API Launch: ${LAUNCH_TIME:-0}s" | tee -a "$LOG_FILE"
+echo "  Queue Time: ${QUEUE_TIME:-0}s" | tee -a "$LOG_FILE"
+echo "  Execution Time: ${EXEC_TIME:-0}s" | tee -a "$LOG_FILE"
+echo "  Total Time: ${TOTAL_TIME:-0}s" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 if [ "$FINAL_STATUS" = "successful" ]; then
@@ -174,7 +197,7 @@ echo "RH1 2026 Requirements:" | tee -a "$LOG_FILE"
 echo "  30 users running jobs concurrently" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
-if [ $QUEUE_TIME -gt 5 ]; then
+if [ "${QUEUE_TIME:-0}" -gt 5 ]; then
     echo "⚠️  WARNING: Queue time > 5s indicates capacity issues" | tee -a "$LOG_FILE"
     echo "   With 30 concurrent users, jobs may queue significantly" | tee -a "$LOG_FILE"
 else
