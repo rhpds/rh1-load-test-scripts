@@ -122,8 +122,13 @@ echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
 # Completion status
 if [ -f "$RESULTS_DIR/completion.log" ]; then
-    SUCCESSFUL=$(grep -c "✅" "$RESULTS_DIR/completion.log" || echo 0)
-    FAILED=$(grep -c "❌" "$RESULTS_DIR/completion.log" || echo 0)
+    SUCCESSFUL=$(grep -c "✅" "$RESULTS_DIR/completion.log" 2>/dev/null || echo 0)
+    SUCCESSFUL=$(echo "$SUCCESSFUL" | tr -d '[:space:]')
+    SUCCESSFUL=${SUCCESSFUL:-0}
+
+    FAILED=$(grep -c "❌" "$RESULTS_DIR/completion.log" 2>/dev/null || echo 0)
+    FAILED=$(echo "$FAILED" | tr -d '[:space:]')
+    FAILED=${FAILED:-0}
 
     echo "Completion Status:" | tee -a "$RESULTS_DIR/SUMMARY.txt"
     echo "  Successful: $SUCCESSFUL / $BASTION_COUNT" | tee -a "$RESULTS_DIR/SUMMARY.txt"
@@ -217,11 +222,17 @@ echo "JOB SUCCESS RATE" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "========================================" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 echo "" | tee -a "$RESULTS_DIR/SUMMARY.txt"
 
-PASS_COUNT=$(grep -h "✅ PASS" "$RESULTS_DIR"/*-aap.log 2>/dev/null | wc -l || echo 0)
-FAIL_COUNT=$(grep -h "❌ FAIL" "$RESULTS_DIR"/*-aap.log 2>/dev/null | wc -l || echo 0)
+PASS_COUNT=$(grep -h "✅ PASS" "$RESULTS_DIR"/*-aap.log 2>/dev/null | wc -l)
+PASS_COUNT=$(echo "$PASS_COUNT" | tr -d '[:space:]')
+PASS_COUNT=${PASS_COUNT:-0}
+
+FAIL_COUNT=$(grep -h "❌ FAIL" "$RESULTS_DIR"/*-aap.log 2>/dev/null | wc -l)
+FAIL_COUNT=$(echo "$FAIL_COUNT" | tr -d '[:space:]')
+FAIL_COUNT=${FAIL_COUNT:-0}
+
 TOTAL_JOBS=$((PASS_COUNT + FAIL_COUNT))
 
-if [ $TOTAL_JOBS -gt 0 ]; then
+if [ "$TOTAL_JOBS" -gt 0 ]; then
     SUCCESS_RATE=$(echo "scale=1; $PASS_COUNT * 100 / $TOTAL_JOBS" | bc)
     echo "Jobs Completed: $PASS_COUNT / $TOTAL_JOBS" | tee -a "$RESULTS_DIR/SUMMARY.txt"
     echo "Success Rate: ${SUCCESS_RATE}%" | tee -a "$RESULTS_DIR/SUMMARY.txt"
