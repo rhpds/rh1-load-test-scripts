@@ -52,8 +52,11 @@ if [ ! -f "$SCRIPT_DIR/test-storage-speed.sh" ]; then
     exit 1
 fi
 
-# Read bastions from file (skip comments and empty lines)
-mapfile -t BASTION_LINES < <(grep -v '^#' "$BASTION_FILE" | grep -v '^[[:space:]]*$')
+# Read bastions from file (bash 3.2 compatible for macOS)
+BASTION_LINES=()
+while IFS= read -r line; do
+    BASTION_LINES+=("$line")
+done < <(grep -v '^#' "$BASTION_FILE" | grep -v '^[[:space:]]*$')
 
 BASTION_COUNT=${#BASTION_LINES[@]}
 echo "Found $BASTION_COUNT bastion hosts in $BASTION_FILE" | tee -a "$RESULTS_DIR/SUMMARY.txt"
