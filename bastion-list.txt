@@ -1,0 +1,15 @@
+# Bastion list for RH1 2026 testing
+# Format: hostname port username password
+# One bastion per line (60 total for 60 users)
+#
+# Copy-paste from RHDP provisioning emails
+# Example from provisioning email:
+#   ssh lab-user@ssh.ocpv07.rhdp.net -p 30437
+#   Password: ZqojUmTmnuml
+#
+# Becomes this line:
+#   ssh.ocpv07.rhdp.net 30437 lab-user ZqojUmTmnuml
+
+ssh.ocpv07.rhdp.net 30437 lab-user ZqojUmTmnuml
+ssh.ocpv08.rhdp.net 30438 lab-user AnotherPass123
+ssh.ocpv09.rhdp.net 30439 lab-user YetAnotherPass
