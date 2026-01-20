@@ -1,0 +1,39 @@
+# Bastion list for AAP Self-Service Portal testing
+# Format: aap_url username password job_template_name
+# One line per user (30 total)
+#
+# IMPORTANT: Replace "CHANGEME" with the actual AAP admin password
+#
+# Example:
+# https://user1-aap-user1-aap.apps.cluster.com admin YourPassword Demo Job Template
+
+https://user1-aap-user1-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user2-aap-user2-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user3-aap-user3-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user4-aap-user4-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user5-aap-user5-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user6-aap-user6-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user7-aap-user7-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user8-aap-user8-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user9-aap-user9-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user10-aap-user10-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user11-aap-user11-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user12-aap-user12-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user13-aap-user13-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user14-aap-user14-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user15-aap-user15-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user16-aap-user16-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user17-aap-user17-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user18-aap-user18-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user19-aap-user19-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user20-aap-user20-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user21-aap-user21-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user22-aap-user22-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user23-aap-user23-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user24-aap-user24-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user25-aap-user25-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user26-aap-user26-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user27-aap-user27-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user28-aap-user28-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user29-aap-user29-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
+https://user30-aap-user30-aap.apps.cluster-px7mg.dyn.redhatworkshops.io admin CHANGEME Demo Job Template
